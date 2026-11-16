@@ -1811,7 +1811,10 @@ IB.buildInterior=function(bi,floor){
       }
       blk[idx(px,py)]=0;
     };
-    for(let xx=dx-1;xx<=dx+1;xx++){clearT(xx,y1-1);clearT(xx,y1);}   /* майданчик перед виходом */
+    /* БАТЧ 19: прихожа 3×3 — вхід завжди відкритий з усіх боків (раніше 3×2:
+       у малих будинках стіна-розділювач і меблі впирались прямо в спавн,
+       гравець «заходив у стіну» і не міг вільно ходити) */
+    for(let xx=dx-1;xx<=dx+1;xx++){clearT(xx,y1-2);clearT(xx,y1-1);clearT(xx,y1);}   /* майданчик перед виходом */
     for(const g of passGaps)clearT(g[0],g[1]);                       /* прорізи внутрішніх стін */
     clearT(x0+1,y1-2);clearT(x0+2,y1-1);clearT(x0+2,y1-2);           /* біля сходів вниз */
     clearT(x1-1,y1-2);clearT(x1-2,y1-1);clearT(x1-2,y1-2);           /* біля сходів вгору */
