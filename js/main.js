@@ -595,15 +595,19 @@ IB.MAIN=(function(){
     /* --- режимний стан --- */
     if(mode==='boot'){
       bootT+=dt;
-      if(bootT>3.4){show('boot',false);titleMenu();}
+      if(bootT>2.2){show('boot',false);titleMenu();}
     } else if(mode==='title'){titleT+=dt;}
     else if(mode==='loading'){
       loadT+=dt;
-      const total=SECTORS.length;
-      const sec=Math.min(total-1,Math.floor(loadT/0.22));
+      /* БАТЧ 20: чесне завантаження. Генерація міста триває ~135мс і ще до
+         титульного екрана зроблена у фоні (передгенерація, батч 20).
+         Колишня анімація секторів штучно тримала ~9с (0.24с × 37 зон) —
+         тому гра «довго завантажувалась». Тепер — 0.8с кінематографічної
+         паузи з назвою сектору спавну і порадою, потім одразу в гру. */
+      const LAUNCH=0.8, sec=0;
       setLoading((IB._loadPending?'ВІДНОВЛЕННЯ • ':'СЕКТОР ')+sec+' — '+SECTORS[sec],TIPS[sec%TIPS.length]);
-      $('load-bar').firstElementChild.style.width=Math.min(100,loadT/0.22/total*100)+'%';
-      if(loadT>0.24*total){
+      $('load-bar').firstElementChild.style.width=Math.min(100,loadT/LAUNCH*100)+'%';
+      if(loadT>LAUNCH){
         if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}   /* місто + ПІДЗЕМКА (батч 10) */
         if(IB._loadPending){IB._loadPending=false;if(!IB.SYS.load()){IB.SYS.newGame();}}
         else if(!IB._gameInited){IB.SYS.newGame();}
@@ -810,6 +814,13 @@ IB.MAIN=(function(){
         }catch(e){/* процедурний стиль лишається */}
       }).catch(()=>{});
     }
+    /* БАТЧ 20: передгенерація світу у фоні — місто (135мс) і метро (35мс)
+       будуються ще під час boot-інтро, тому «НОВА ГРА» стартує миттєво
+       і сторінка не заморожується. Спроба в try/catch: якщо щось пішло
+       не так — завантаження згенерує світ синхронно, як раніше. */
+    setTimeout(function(){try{
+      if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}
+    }catch(e){}},350);
   };
   return MAIN;
 })();
