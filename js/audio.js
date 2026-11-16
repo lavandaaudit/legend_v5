@@ -90,10 +90,65 @@ IB.AUDIO = (function(){
     noise(0.05,0.05,4000,4000,2);
     for(let i=0;i<notes.length;i++)noise(0.03,0.04,5000,5000,2,i*0.22);
   }
+  /* БАТЧ 23: постійна музика. Тайтл — тема циклом; у грі — тихий темний дрон
+     ( атмосфера руїн без шуму, що з'їдає кроки зомбі ). Політика автоплею:
+     перший клік/клавша викликає init() і musicStart — музика починається одразу. */
+  let musMode=null,musTmr=null,musNodes=[];
+  const THEME=[196,233,262,294,262,233,196,165,196,0,262,0,294,262,233,196];
+  function musicStop(){
+    musMode=null;
+    if(musTmr){clearTimeout(musTmr);musTmr=null;}
+    for(const n of musNodes){try{n.stop();}catch(e){}}
+    musNodes=[];
+  }
+  function musicStart(mode){
+    if(!ensure())return;
+    if(musMode===mode)return;
+    musicStop();
+    musMode=mode;
+    if(mode==='title'){
+      let i=0;
+      const step=()=>{
+        if(musMode!=='title')return;
+        const f=THEME[i%THEME.length];
+        /* поки контекст підвішений (нема жести) — ноти НЕ плануємо,
+           інакше після першого кліку вся послідовність грала б разом */
+        if(f&&!muted&&ctx.state==='running'){tone(f,f,0.2,'square',0.07);tone(f/2,f/2,0.2,'triangle',0.05);}
+        i++;musTmr=setTimeout(step,210);
+      };
+      step();
+    } else if(mode==='game'){
+      const o1=ctx.createOscillator(),o2=ctx.createOscillator(),gn=ctx.createGain(),fl=ctx.createBiquadFilter();
+      o1.type='sawtooth';o2.type='sawtooth';
+      o1.frequency.value=55;o2.frequency.value=55.7;
+      fl.type='lowpass';fl.frequency.value=210;fl.Q.value=2;
+      gn.gain.value=0.05;
+      o1.connect(fl);o2.connect(fl);fl.connect(gn);gn.connect(master);
+      o1.start();o2.start();
+      musNodes=[{stop(){try{
+        gn.gain.setTargetAtTime(0,ctx.currentTime,0.4);
+        setTimeout(()=>{try{o1.stop();}catch(e){}},600);
+        setTimeout(()=>{try{o2.stop();}catch(e){}},600);
+      }catch(e){}}} ];
+      let beats=0;
+      const pulse=()=>{
+        if(musMode!=='game')return;
+        beats++;
+        if(ctx.state==='running'){
+          tone(110,109,0.5,'triangle',0.026);
+          if(beats%9===0)tone(233,174,1.4,'sine',0.02);
+          if(beats%23===0)tone(146,145,0.9,'triangle',0.02);
+        }
+        musTmr=setTimeout(pulse,1900);
+      };
+      musTmr=setTimeout(pulse,1900);
+    }
+  }
   return {
     init:ensure,
     sfx:n=>{try{(S[n]||(()=>{}))();}catch(e){}},
     engineStart,engineSet,engineStop,jingle,
+    musicStart,musicStop,isMusic:()=>musMode,
     setVol:v=>{vol=v;if(master)master.gain.value=muted?0:v;},
     toggleMute:()=>{muted=!muted;if(master)master.gain.value=muted?0:vol;return muted;},
   };

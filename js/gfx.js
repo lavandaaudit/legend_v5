@@ -770,29 +770,42 @@ IB.GFX=(function(){
       const sx=IB.clamp(PL.x-SP/2,0,W.W-SP),sy=IB.clamp(PL.y-SP/2,0,W.H-SP);
       g.drawImage(W.mm,sx,sy,SP,SP,0,0,SZ,SZ);
       const P=(wx,wy)=>[(wx-sx)*SZ/SP,(wy-sy)*SZ/SP];
+      /* БАТЧ 23: EDGE-CLAMP — позначки за межами вікна 52×52 більше НЕ зникають.
+         Раніше mark() просто відкидав усе за межами вікна, і на локальному виді
+         здавалось, що «всі позначки зникли». Тепер важливі об'єкти (схованки,
+         станції, вежі, вехи, конверти, АЗС, цілі, піни) притискаються до краю
+         мінікарти напівпрозорою крапкою — напрямок видно завжди. */
       function mark(wx2,wy2,col,o){
-        o=o||{};const[x,y]=P(wx2,wy2);
-        if(x<2||x>SZ-2||y<2||y>SZ-2)return;
+        o=o||{};let[x,y]=P(wx2,wy2);
+        const out=x<3||x>SZ-3||y<3||y>SZ-3;
+        if(out){
+          if(!o.edge)return;
+          x=IB.clamp(x,4,SZ-4);y=IB.clamp(y,4,SZ-4);
+          g.globalAlpha=0.8;
+        }
         if(o.tri)tri(x,y,col);else dot(x,y,col,o.r||2);
+        g.globalAlpha=1;
       }
       const m=IB.MISSIONS[G.mi];
       if(m&&!G.ending&&IB.layer!=='metro'){
         const tx=(m.two&&G.flags['m6a']&&m.x2!==undefined)?m.x2:m.x,ty=(m.two&&G.flags['m6a']&&m.y2!==undefined)?m.y2:m.y;
-        mark(tx+0.5,ty+0.5,NOW%400<200?'#f0d050':'#c8a020',{tri:true});
+        mark(tx+0.5,ty+0.5,NOW%400<200?'#f0d050':'#c8a020',{tri:true,edge:true});
       }
-      if(IB.layer!=='metro')for(const s of W.safes)mark(s.x,s.y,'#4ee06a');
-      if(W.base)mark(W.base.x,W.base.y,'#38d8b0',{tri:true});
-      for(const st of W.stations)mark(st.x,st.y,NOW%700<350?'#cc4438':'#8a2820',{r:2.5});
+      if(IB.layer!=='metro')for(const s of W.safes)mark(s.x,s.y,'#4ee06a',{edge:true});
+      if(W.base)mark(W.base.x,W.base.y,'#38d8b0',{tri:true,edge:true});
+      for(const st of W.stations)mark(st.x,st.y,NOW%700<350?'#cc4438':'#8a2820',{r:2.5,edge:true});
       if(IB.layer!=='metro'){
-        for(const tw of W.towers)if(IB.dist(PL.x,PL.y,tw.x,tw.y)<40)mark(tw.x,tw.y,NOW%400<200?'#38b8d8':'#1a5a70');
-        /* КВЕСТ «НЕДОСТАВЛЕНІ»: конверти поблизу */
-        for(const lt of W.letters||[])mark(lt.x,lt.y,NOW%600<300?'#f0d050':'#9a7a20',{r:2});
-        for(const l of W.lms){if(l.key==='radio_tower'||l.key==='mm13')continue;if(IB.dist(PL.x,PL.y,l.x,l.y)<40)mark(l.x+l.wT/2,l.y+l.dT/2,'#f0d050',{r:1.5});}
+        for(const tw of W.towers)mark(tw.x,tw.y,NOW%400<200?'#38b8d8':'#1a5a70',{edge:true});
+        /* КВЕСТ «НЕДОСТАВЛЕНІ»: конверти */
+        for(const lt of W.letters||[])mark(lt.x,lt.y,NOW%600<300?'#f0d050':'#9a7a20',{r:2,edge:true});
+        for(const l of W.lms){if(l.key==='radio_tower'||l.key==='mm13')continue;mark(l.x+l.wT/2,l.y+l.dT/2,'#f0d050',{r:1.5,edge:true});}
+        for(const gs of W.gas||[])mark(gs.x,gs.y,'#e08a30',{r:1.5,edge:true});   /* АЗС */
+        for(const pn of G.flags.pins||[])mark(pn.x,pn.y,'#f0d050',{r:2,edge:true});   /* піни гравця */
         for(const np of IB.ENTS.npcs||[])if(np.state!=='follow'&&IB.dist(PL.x,PL.y,np.x,np.y)<40)mark(np.x,np.y,'#e08a30',{r:1.5});
       }
-      if(G.flags.drop)mark(G.flags.drop.x,G.flags.drop.y,'#e04a3a',{r:2.5});
+      if(G.flags.drop)mark(G.flags.drop.x,G.flags.drop.y,'#e04a3a',{r:2.5,edge:true});
       const SH=IB.G.shah;
-      if(SH&&SH.phase&&IB.layer!=='metro')for(const tg of SH.targets)mark(tg.x,tg.y,NOW%260<130?'#e04a3a':'#8a2a20',{tri:true});
+      if(SH&&SH.phase&&IB.layer!=='metro')for(const tg of SH.targets)mark(tg.x,tg.y,NOW%260<130?'#e04a3a':'#8a2a20',{tri:true,edge:true});
       for(const sv of IB.ENTS.survivors){if(sv.state==='help')mark(sv.x,sv.y,NOW%400<200?'#f0d050':'#c8a020');}
       /* ТОЧКА МАРШРУТУ + GPS: пунктир або стрілка на краю + відстань */
       if(way){
@@ -819,6 +832,9 @@ IB.GFX=(function(){
       const pxx=(PL.x-sx)*SZ/SP,pyy=(PL.y-sy)*SZ/SP;
       dot(pxx,pyy,NOW%300<150?'#ffffff':'#d6dae6',2);
       g.strokeStyle='#ffffff';g.beginPath();g.moveTo(pxx,pyy);g.lineTo(pxx+PL.fx*7,pyy+PL.fy*7);g.stroke();
+      g.font='6px monospace';g.textAlign='left';
+      g.fillStyle='#f0d050';g.fillText('ЛОКАЛЬНО',3,8);
+      g.fillStyle='#8a92a8';g.textAlign='right';g.fillText('P — ПЛАН',SZ-3,8);
     }
     g.strokeStyle='#3c4356';g.strokeRect(0.5,0.5,SZ-1,SZ-1);
   }

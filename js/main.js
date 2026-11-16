@@ -73,7 +73,7 @@ IB.MAIN=(function(){
   let menuIdx=0,menuItems=[],menuCtx='';
   let dlg={name:'',text:'',opts:[],idx:0};
   let sel=0,invSel=0;
-  let bootT=0,titleT=0,loadT=0,fadeT=0,fadeCb=null;
+  let titleT=0,fadeT=0,fadeCb=null;
   let uiTick=0;
   const MAIN={attackAnim:0,shootAnim:0,muzzleT:0};
   window.MAIN=MAIN;   /* зовнішній доступ для діагностики/консолі (батч 15) */
@@ -256,12 +256,7 @@ IB.MAIN=(function(){
   }
   function closeDialog(){show('dialog',false);mode='game';}
 
-  /* ---------- загрузка/HUD ---------- */
-  const SECTORS=IB.ZONES.map(z=>z.n);
-  function setLoading(secN,tip){
-    $('load-sector').textContent=secN;
-    $('load-tip').textContent=tip||'';
-  }
+  /* ---------- HUD ---------- */
   function syncHUD(){
     const p=IB.PL;if(!p)return;
     const G=IB.G,W=IB.WORLD;
@@ -383,28 +378,36 @@ IB.MAIN=(function(){
 
   function titleMenu(){
     mode='title';
-    show('title',true);show('loading',false);show('hud',false);show('pause',false);show('dead',false);show('end',false);show('bigmap',false);show('inv',false);show('controls',false);show('about',false);
+    show('boot',false);show('title',true);show('loading',false);show('hud',false);show('pause',false);show('dead',false);show('end',false);show('bigmap',false);show('inv',false);show('controls',false);show('about',false);
     try{IB.GFX.drawLogo($('logo').getContext('2d'));}catch(e){}
     const items=[{t:'НОВА ГРА',f:()=>startNewGame()}];
     if(IB.SYS.hasSave())items.push({t:'ПРОДОВЖИТИ',f:()=>loadGame()});
     items.push({t:'КЕРУВАННЯ',f:()=>{mode='controls';show('title',false);show('controls',true);}});
     items.push({t:'ПРО ГРУ ТА АСЕТИ',f:()=>{mode='about';show('title',false);show('about',true);}});
     setMenu(items,'title');
-    IB.AUDIO.jingle();
+    IB.AUDIO.musicStart('title');
   }
+  /* БАТЧ 23: жодних окремих екранів «boot» і «loading». Тайтл відкривається
+     одразу після відкриття сторінки, музика починається з першою взаємодією,
+     а «загрузка» перенесена ВСЕРЕДИНУ гри: якщо передгенерація (батч 20,
+     setTimeout 350мс після ініта) ще не встигла — світ будується тут, ~135мс,
+     гравець цього не помічає; далі одразу HUD і банер сектора в грі. */
   function startNewGame(){
-    show('title',false);show('loading',true);mode='loading';
-    loadT=0;
+    if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}
+    IB._loadPending=false;
+    IB.SYS.newGame();
+    beginPlay();
   }
   function loadGame(){
-    show('title',false);show('loading',true);mode='loading';
-    loadT=0;
-    IB._loadPending=true;
+    if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}
+    beginPlay();
+    if(!IB.SYS.load())IB.SYS.newGame();
   }
   function beginPlay(){
-    show('loading',false);show('hud',true);show('title',false);
+    show('loading',false);show('hud',true);show('title',false);show('boot',false);
     mode='game';
     IB.Input.clear();
+    IB.AUDIO.musicStart('game');   /* БАТЧ 23: у грі — тихий фоновий дрон замість тайтл-теми */
   }
   MAIN.showEnd=function(){
     mode='end';
@@ -421,6 +424,7 @@ IB.MAIN=(function(){
       (IB.MAIL?'<b>ЛИСТИ «НЕДОСТАВЛЕНІ»:</b> '+IB.MAIL.progress().read+'/'+IB.MAIL.TOTAL+(IB.G.flags.mailFin?' • В ЕФІРІ НА 103.1':'')+'<br>':'')+
       '<b>СИГНАЛ:</b> ПЕРЕДАНО З ПАГОРБА БАТЬКІВЩИНИ-МАТИ';
     show('hud',false);show('end',true);
+    IB.AUDIO.musicStop();
     IB.AUDIO.sfx('mission');
   };
   function pauseMenu(){
@@ -593,29 +597,9 @@ IB.MAIN=(function(){
     const dt=Math.min(0.05,(ts-last)/1000||0.016);last=ts;
     uiTick++;
     IB.G.mode=mode;
-    /* --- режимний стан --- */
-    if(mode==='boot'){
-      bootT+=dt;
-      if(bootT>2.2){show('boot',false);titleMenu();}
-    } else if(mode==='title'){titleT+=dt;}
-    else if(mode==='loading'){
-      loadT+=dt;
-      /* БАТЧ 20: чесне завантаження. Генерація міста триває ~135мс і ще до
-         титульного екрана зроблена у фоні (передгенерація, батч 20).
-         Колишня анімація секторів штучно тримала ~9с (0.24с × 37 зон) —
-         тому гра «довго завантажувалась». Тепер — 0.8с кінематографічної
-         паузи з назвою сектору спавну і порадою, потім одразу в гру. */
-      const LAUNCH=0.8, sec=0;
-      setLoading((IB._loadPending?'ВІДНОВЛЕННЯ • ':'СЕКТОР ')+sec+' — '+SECTORS[sec],TIPS[sec%TIPS.length]);
-      $('load-bar').firstElementChild.style.width=Math.min(100,loadT/LAUNCH*100)+'%';
-      if(loadT>LAUNCH){
-        if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}   /* місто + ПІДЗЕМКА (батч 10) */
-        if(IB._loadPending){IB._loadPending=false;if(!IB.SYS.load()){IB.SYS.newGame();}}
-        else if(!IB._gameInited){IB.SYS.newGame();}
-        IB._gameInited=true;
-        beginPlay();
-      }
-    }
+    /* --- режимний стан (БАТЧ 23: режимів boot/loading більше немає — тайтл
+       одразу, світ генерується до тайтла фоном або при старті нової гри) --- */
+    if(mode==='title'){titleT+=dt;}
     else if(mode==='game'||mode==='map'){updateGame(dt);}
     else if(mode==='dialog'){updateDialog(dt);}
     else if(mode==='pause'||mode==='title'||mode==='controls'||mode==='about'){updateMenus();}
@@ -624,6 +608,7 @@ IB.MAIN=(function(){
       if(IB.Input.consume('enter')||IB.Input.consume('e')||IB.Input.consume('space')){
         show('dead',false);show('hud',true);mode='game';
         IB.SYS.respawn();
+        IB.AUDIO.musicStart('game');
       }
     }
     else if(mode==='end'){
@@ -631,37 +616,34 @@ IB.MAIN=(function(){
         show('end',false);show('hud',true);mode='game';
         IB.G.mi=IB.MISSIONS.length;IB.G.ending=false;
         IB.banner('ВІЛЬНЕ ВИЖИВАННЯ • КИЇВ ТВІЙ');
+      IB.AUDIO.musicStart('game');
       }
     }
     /* --- рендер --- */
-    if(mode==='boot'){
-      /* анімація загрузки */
-    } else {
-      if(IB.PL){
-        if(mode==='game'||mode==='map'||mode==='dialog'||mode==='inv'||mode==='dead'||mode==='end'){
-          const p=IB.PL;
-          const tx=p.car?p.car.x:p.x, ty=p.car?p.car.y:p.y;
-          IB.cam.x+=(tx-IB.cam.x)*Math.min(1,dt*6);
-          IB.cam.y+=(ty-IB.cam.y)*Math.min(1,dt*6);
-          g.fillStyle='#0a0c12';g.fillRect(0,0,IB.CAMW,IB.CAMH);
-          IB.GFX.drawGround(g);
-          IB.GFX.drawScene(g);
-          if(IB.HIDE){   /* вигляд з-за шторки: темна кімната + текст */
-            g.fillStyle='rgba(4,6,12,0.72)';g.fillRect(0,0,IB.CAMW,IB.CAMH);
-            g.textAlign='center';g.font='bold 12px monospace';
-            g.fillStyle='#f0d050';g.fillText('ТИ В БУДИНКУ — СХОВАНО',IB.CAMW/2,IB.CAMH/2-8);
-            g.font='8px monospace';g.fillStyle='#9aa0ae';
-            g.fillText('ЗОМБІ ВТРАТИЛИ СЛІД • ВІДПОЧИВАЄШ • E — ВИЙТИ НАЗОВНІ',IB.CAMW/2,IB.CAMH/2+12);
-            if(IB.HIDE.t>6){g.fillStyle='#4ee06a';g.fillText('ВОНИ РОЗІЙШЛИСЯ',IB.CAMW/2,IB.CAMH/2+28);}
-          }
-          IB.GFX.drawMinimapHUD(hud.mm.getContext('2d'));
-          IB.GFX.drawCompass(hud.cp.getContext('2d'));
-          if(mode==='map'){IB.GFX.drawBigMap($('mapc').getContext('2d'));
-            const md=$('map-disc');
-            if(md){const disc=Math.round(Object.keys(IB.G.visited).filter(k=>IB.G.visited[k]).length/IB.ZONES.length*100);
-              md.textContent=disc+'%';}}
-          syncHUD();
+    if(IB.PL){
+      if(mode==='game'||mode==='map'||mode==='dialog'||mode==='inv'||mode==='dead'||mode==='end'){
+        const p=IB.PL;
+        const tx=p.car?p.car.x:p.x, ty=p.car?p.car.y:p.y;
+        IB.cam.x+=(tx-IB.cam.x)*Math.min(1,dt*6);
+        IB.cam.y+=(ty-IB.cam.y)*Math.min(1,dt*6);
+        g.fillStyle='#0a0c12';g.fillRect(0,0,IB.CAMW,IB.CAMH);
+        IB.GFX.drawGround(g);
+        IB.GFX.drawScene(g);
+        if(IB.HIDE){   /* вигляд з-за шторки: темна кімната + текст */
+          g.fillStyle='rgba(4,6,12,0.72)';g.fillRect(0,0,IB.CAMW,IB.CAMH);
+          g.textAlign='center';g.font='bold 12px monospace';
+          g.fillStyle='#f0d050';g.fillText('ТИ В БУДИНКУ — СХОВАНО',IB.CAMW/2,IB.CAMH/2-8);
+          g.font='8px monospace';g.fillStyle='#9aa0ae';
+          g.fillText('ЗОМБІ ВТРАТИЛИ СЛІД • ВІДПОЧИВАЄШ • E — ВИЙТИ НАЗОВНІ',IB.CAMW/2,IB.CAMH/2+12);
+          if(IB.HIDE.t>6){g.fillStyle='#4ee06a';g.fillText('ВОНИ РОЗІЙШЛИСЯ',IB.CAMW/2,IB.CAMH/2+28);}
         }
+        IB.GFX.drawMinimapHUD(hud.mm.getContext('2d'));
+        IB.GFX.drawCompass(hud.cp.getContext('2d'));
+        if(mode==='map'){IB.GFX.drawBigMap($('mapc').getContext('2d'));
+          const md=$('map-disc');
+          if(md){const disc=Math.round(Object.keys(IB.G.visited).filter(k=>IB.G.visited[k]).length/IB.ZONES.length*100);
+            md.textContent=disc+'%';}}
+        syncHUD();
       }
     }
     /* fade */
@@ -681,39 +663,14 @@ IB.MAIN=(function(){
         '<b>ЗІБРАНО РЕЧЕЙ:</b> '+(G.loot||0)+'<br>'+
         '<b>ЗАРАЖЕНИХ ЗНИЩЕНО:</b> '+(IB.PL.kills||0)+'<br>';
       $('dead-txt').textContent='Ти загинув на вулицях Києва. Але місто ще чекає. Схованка зберігає твої речі — повернись.';
+      IB.AUDIO.musicStop();
       IB.AUDIO.sfx('zdie');
     }
   }
-  const TIPS=['НЕ БІГЛИ ВНОЧІ — ШУМ ПРИТЯГУЄ ОРДУ','СИРЕНА? СХОВАЙСЯ — ШАХЕДИ Б’ЮТЬ ПО РАЙОНУ','ВЕДИ ВЦІЛІЛИХ НА БАЗУ ВВ13 — ВОНИ КРИЧАТЬ «HELP»','ПАТРОНИ КРАФТИ З ЗАПЧАСТИН НА ВЕРСТАКУ ВВ13','МЕТРО: СПУСТИВСЯ НА ОБЛОНОЙ — ВИЙШОВ НА ПЕЧЕРСЬКУ • АТАК У ТУНЕНЯХ НЕМАЄ','СХОВАВСЯ В БУДИНКУ (E НА ДВЕРЯХ) — ЗОМБІ РОЗХОДЯТЬСЯ','АВТО — ШВИДКІСТЬ, АЛЕ І ШУМ','РУБАЙ У МОМЕНТ УДАРУ — ВІДБИЄШ БЕЗ ШКОДИ','ДНІПРО НЕПРОХОДИЙ — ЙДИ МОСТАМИ','ПАГОРБИ ПЕЧЕРСЬКА — НАЙКРАЩИЙ ОГЛЯД','У ПІДЗЕМКЕ ТЕМНО — ЛІХТАР (F) І БАТАРЕЙКИ З ПОЛИЦЬ'];
-
   MAIN.fadeTo=function(cb){fadeT=0.6;fadeCb=cb;};
   MAIN.backToTitle=function(){show('controls',false);show('about',false);titleMenu();};
 
   /* ---------- boot + init ---------- */
-  function bootAnim(){
-    const boot=$('boot');
-    const lines=[
-      ['IBONARIUM BIOS v2.7','dim'],
-      ['16-BIT HOME SYSTEM — MODEL IK-1601','dim'],
-      [''],
-      ['ПЕРЕВІРКА ПАМ’ЯТІ........ 64K OK',''],
-      ['ВІДЕОПРОЦЕСОР........... OK',''],
-      ['ЗВУКОВИЙ ЧІП............ OK',''],
-      ['ЗАВАНТАЖЕННЯ КАРТРИДЖА: KYIV — THE LAST SIGNAL','gold'],
-      [''],
-      ['КИЇВ ЧЕКАЄ. НАТИСНІТЬ ЩО-НЕБУДЬ…','blink'],
-    ];
-    let i=0;
-    const tm=setInterval(()=>{
-      if(i>=lines.length||mode!=='boot'){clearInterval(tm);return;}
-      const d=document.createElement('div');
-      d.className='bline'+(lines[i][1]?' '+lines[i][1]:'');
-      d.textContent=lines[i][0]||'\u00A0';
-      boot.appendChild(d);
-      i++;
-      IB.AUDIO.sfx('ui');
-    },260);
-  }
   function bindShell(){
     $('btn-power').onclick=()=>{location.reload();};
     $('btn-reset').onclick=()=>{location.reload();};
@@ -723,9 +680,15 @@ IB.MAIN=(function(){
     if(fsBtn)fsBtn.onclick=()=>toggleFullscreen();
     if($('crt')){$('crt').addEventListener('dblclick',()=>toggleFullscreen());}
     $('vol').oninput=e=>IB.AUDIO.setVol(e.target.value/100);
-    const skip=()=>{if(mode==='boot'){bootT=99;}};
-    window.addEventListener('keydown',skip);
-    $('crt').addEventListener('mousedown',skip);
+    /* БАТЧ 23: музика одразу. Браузери дозволяють звук лише після жести
+       користувача, тому перший клік/клавша вмикає аудіо і тайтл-тему циклом.
+       Далі керує musicStart/musicStop (гра/смерть/смерт-екран). */
+    const wake=()=>{
+      IB.AUDIO.init();
+      if(IB.AUDIO.isMusic()===null&&(mode==='title'||mode==='controls'||mode==='about'))IB.AUDIO.musicStart('title');
+    };
+    window.addEventListener('pointerdown',wake);
+    window.addEventListener('keydown',wake);
     /* глобальна гаряча клавіша V — повний екран */
     window.addEventListener('keydown',ev=>{if(ev.code==='KeyV'){toggleFullscreen();}});
     /* у фейковому фулскріні ESC виходить */
@@ -803,7 +766,7 @@ IB.MAIN=(function(){
     IB.Input.bindTouch();
     if(/[?&]touch=1/.test(location.search))document.body.classList.add('touchtest');
     bindShell();
-    bootAnim();
+    titleMenu();   /* БАТЧ 23: тайтл одразу — сторінка відкривається миттєво */
     /* розмір екрана */
     function fit(){
       const crt=$('crt');
