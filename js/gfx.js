@@ -1199,7 +1199,10 @@ IB.GFX=(function(){
     /* ТОЧКА МАРШРУТУ + ЧЕРВОНА ЛІНІЯ НАВІГСАЦЇЇ (батч 15: BFS-маршрут) */
     const way=G.flags.way;
     if(PL){
-      const[px2,py2]=P(PL.x,PL.y);
+      /* БАТЧ 22: зсередини будинку PL у координатах інтер'єру — маркер
+         стає на двері, біля яких гравець зайшов (IB.CPOS) */
+      const MP=(IB.layer==='interior'&&IB.CPOS)?IB.CPOS:PL;
+      const[px2,py2]=P(MP.x,MP.y);
       if(way){
         const[wx2,wy2]=P(way.x,way.y);
         const drawn=drawRoutePath(g,P,170);

@@ -385,7 +385,7 @@ IB.SYS={
     if(IB.CWORLD)IB.WORLD=IB.CWORLD;    /* нова гра починається на поверхні */
     G.t=8;G.day=1;G.mi=0;G.mdone=[];G.flags={};G.stash={};G.visited={};G.deaths=0;G.evT=100;G.ending=false;
     G.stats={att:0,saved:0,bld:0,zones:0};
-    G.blds={};G.playT=0;
+    G.blds={};G.playT=0;G.loot=0;   /* БАТЧ 22: зібрано речей за цей раз */
     IB.INTERIORS={};
     G.shah={t:IB.rnd(260,330),phase:null,s1:false,sirT:0,spawnN:0,count:0,targets:[],tip:false,offT:0};
     G.survT=IB.rnd(70,110);G.atBase=false;
@@ -974,7 +974,7 @@ IB.SYS={
         lootedM:IB.layer==='metro'&&IB.MWORLD?IB.MWORLD.props.filter(pr=>pr.looted).map(pr=>pr.id):[],
         pl:{x:p.x,y:p.y,hp:p.hp,st:p.st,hu:p.hu,wa:p.wa,inv:p.inv,batt:p.batt,kills:p.kills,sword2:!!p.sword2},
         stats:{att:G.stats.att,saved:G.stats.saved,bld:G.stats.bld||0,zones:G.stats.zones||0},shah:{t:G.shah.t},
-        blds:G.blds||{},playT:G.playT||0,
+        blds:G.blds||{},playT:G.playT||0,loot:G.loot||0,
         looted,cars,
       }));
       G.flags.saved=1;
@@ -989,7 +989,7 @@ IB.SYS={
     const G=IB.G,p=IB.PL;
     G.day=d.day;G.t=d.t;G.mi=d.mi;G.mdone=d.mdone||[];G.flags=d.flags||{};G.stash=d.stash||{};G.visited=d.visited||{};G.deaths=d.deaths||0;G.ending=false;
     G.stats=Object.assign({att:0,saved:0,bld:0,zones:0},d.stats||{});
-    G.blds=d.blds||{};G.playT=d.playT||0;
+    G.blds=d.blds||{};G.playT=d.playT||0;G.loot=d.loot||0;
     G.shah={t:(d.shah&&d.shah.t)||IB.rnd(220,330),phase:null,s1:false,sirT:0,spawnN:0,count:0,targets:[],tip:false,offT:0};
     G.survT=IB.rnd(70,110);G.atBase=false;
     if(d.wx&&d.wx.type)IB.WX.type=d.wx.type;

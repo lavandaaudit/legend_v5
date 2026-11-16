@@ -559,6 +559,7 @@ IB.updateEnts=function(dt){
     const pk=E.pickups[i];pk.bob+=dt*4;
     if(IB.dist(pk.x,pk.y,p.x,p.y)<0.6){
       IB.addItem(pk.item,pk.n);IB.AUDIO.sfx('pickup');
+      IB.G.loot=(IB.G.loot||0)+pk.n;   /* БАТЧ 22: «зібрано» для екрана смерті */
       const nm=(IB.SPR.itemsDB[pk.item]||{}).n||pk.item;
       IB.toast('+ '+nm+(pk.n>1?' ×'+pk.n:''));
       E.pickups.splice(i,1);

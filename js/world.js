@@ -945,6 +945,58 @@ IB.buildWorld=function(){
   };
   IB._expandCity(world);   /* БАТЧ 16: поля області навколо всього міста */
   IB._expandCity3(world);  /* БАТЧ 17: захід — Шулявка/Святошин/Академмістечко, південь — Либідська/Деміївська/Іподром/Вишневе; Ірпінь — за Академмістечком */
+  /* ---- БАТЧ 21: ПРОХІДНІСТЬ УСІЄЇ КАРТИ + СЕЛО БУЧА (фінальні координати) ----
+     1. ШВИ РОЗШИРЕНЬ: кожне розширення (16/17/18) малювало рамку «межа карти»
+        (blk=4) по периметру свого контент-бокса. Після трьох розширень ці рамки
+        лишились всередині фінальної карти (вертикальний шов x≈240 відрізав
+        Мощун/Святошин/Академмістечко/Ірпінь, горизонтальний y≈658 — Вишневе/
+        Голосіїво/поля області): 51% прохідної площі був недосяжний пішки, на
+        Майдані/Подолі упирались у стіну і не могли вийти з району.
+        blk=4 використовується ТІЛЬКИ для рамок — прибираємо всі внутрішні;
+        двоклітинкова межа по краю фінальної карти лишається. */
+  {
+    const Wf=world.W,Hf=world.H,TT=IB.TER;
+    for(let yy=2;yy<Hf-2;yy++)for(let xx=2;xx<Wf-2;xx++){const ii=yy*Wf+xx;if(world.blk[ii]===4)world.blk[ii]=0;}
+    /* 2. СТАРА «БУЧА-2»: лейбл села, що потрапив у район Святошина/Голосіїва,
+       і патч зони БУЧА біля Вишневого — прибираємо (було дві Бучі на карті). */
+    world.villages=world.villages.filter(v=>!(v.n==='СЕЛО БУЧА'&&v.x>200));
+    for(let yy=2;yy<Hf-2;yy++)for(let xx=250;xx<Wf-2;xx++){const ii=yy*Wf+xx;if(world.zone[ii]===25)world.zone[ii]=35;}
+    /* 3. СЕЛО БУЧА БІЛЯ ІРПЕНЯ — РОЗШИРЕННЯ: ґрунтові вулички навхрест,
+       ~24 котеджі новобудови навколо схованки КОТЕДЖ • БУЧА (36,481),
+       своя зона z25 і лейбл на карті. Двері/поверхи/килимки — як у батчі 16. */
+    const bx0=24,bx1=80,by0=460,by1=520;
+    for(let yy=by0;yy<=by1;yy++)for(let xx=bx0;xx<=bx1;xx++){const ii=yy*Wf+xx;if(world.ter[ii]!==TT.water)world.zone[ii]=25;}
+    for(let xx=bx0;xx<=bx1;xx++){const ii=486*Wf+xx;if(world.blk[ii]===0&&world.ter[ii]!==TT.water)world.ter[ii]=TT.dirt;}
+    for(let yy=by0;yy<=by1;yy++)for(const xc of[30,31,46,47]){const ii=yy*Wf+xc;if(world.blk[ii]===0&&world.ter[ii]!==TT.water)world.ter[ii]=TT.dirt;}
+    const cats=['cottage_b','vill1','vill2','dacha2','cottage_b','wood2','dacha1','vill1'];
+    const newB=[];let pid=world.props.length+7000;
+    const putC=(xx,yy)=>{
+      const cat=cats[newB.length%cats.length];
+      const wT=({vill1:3,dacha1:3,dacha2:3,cottage_b:2,wood2:2})[cat]||2,dT=2;
+      if(xx+wT>bx1||yy+dT>by1)return;
+      let ok=true;
+      for(let q=yy;q<yy+dT&&ok;q++)for(let p2=xx;p2<xx+wT&&ok;p2++){
+        const ii=q*Wf+p2,t=world.ter[ii];
+        if(world.blk[ii]||t===TT.water||t===TT.road||t===TT.dirt||t===TT.concrete)ok=false;
+      }
+      if(!ok)return;
+      for(let q=yy;q<yy+dT;q++)for(let p2=xx;p2<xx+wT;p2++){const ii=q*Wf+p2;world.ter[ii]=TT.concrete;world.blk[ii]=1;}
+      const b={cat,x:xx,y:yy,wT:wT,dT:dT,zone:25,mural:false,var:0,floors:IB.BLD_FLOORS({cat:cat})||2};
+      world.blds.push(b);newB.push(b);
+    };
+    for(let xx=bx0+1;xx<=bx1-4;xx+=4){putC(xx,465);putC(xx+1,479);putC(xx,494);putC(xx+1,508);}
+    /* двері нових котеджів (дверний пропс під південним фасадом + килимок) */
+    for(const b of newB){
+      const dx=b.x+(b.wT>>1),dy=b.y+b.dT,ii=dy*Wf+dx;
+      if(world.blk[ii]||world.ter[ii]===TT.road||world.ter[ii]===TT.water)continue;
+      const dp={id:pid++,t:'doorp',x:dx+0.5,y:dy+0.5,s:false,loot:null,looted:false,meta:'enter'};
+      dp.bld=world.blds.indexOf(b);
+      world.props.push(dp);
+      b.door={x:dx,y:dy};
+      if(dy+1<Hf&&world.blk[(dy+1)*Wf+dx]===0)world.props.push({id:pid++,t:'doormat',x:dx+0.5,y:dy+1.5,s:false,loot:null,looted:false,meta:null});
+    }
+    world.villages.push({x:38,y:486,n:'СЕЛО БУЧА'});
+  }
   IB.WORLD=world;
   return world;
 };

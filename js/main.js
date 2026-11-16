@@ -517,11 +517,12 @@ IB.MAIN=(function(){
     MAIN.muzzleT=Math.max(0,MAIN.muzzleT-dt);
     /* вхід */
     if(IB.Input.consume('tab')){
-      if(IB.layer==='interior'&&!(IB.INT&&IB.INT.base)){IB.toast('КАРТА НЕДАВНА ВСЕРЕДИНІ • E НА ДВЕРЯХ — ВИЙТИ','red');return;}
+      /* БАТЧ 22: карту відкрито і ВСЕРЕДИНІ будинку — на вулиці небезпечно
+         стояти й дивитись у мапу; маркер показує двері, біля яких ти зайшов */
       if(mode==='game'){mode='map';show('bigmap',true);
         const mt=$('map-title');
         let vz=0;for(const k in IB.G.visited)if(IB.G.visited[k])vz++;
-        if(mt)mt.innerHTML=IB.layer==='metro'?'МЕТРО • СХЕМА ТУНЕЛІВ • 2-ГА МАПА МІСТА':'КАРТА КИЄВА — <span id="map-disc">'+IB.M.round(vz/IB.ZONES.length*100)+'%</span> ДОСЛІДЖЕНО • КЛІК = ТОЧКА МАРШРУТУ';
+        if(mt)mt.innerHTML=(IB.layer==='interior'?'КАРТА КИЄВА • ТИ В БУДИНКУ — МАРКЕР НА ДВЕРЯХ • ':IB.layer==='metro'?'МЕТРО • СХЕМА ТУНЕЛІВ • 2-ГА МАПА МІСТА • ':'КАРТА КИЄВА — ')+'<span id="map-disc">'+IB.M.round(vz/IB.ZONES.length*100)+'%</span> ДОСЛІДЖЕНО • КЛІК = ТОЧКА МАРШРУТУ';
         buildMapPanel();
         IB.AUDIO.sfx('ui');}
       else if(mode==='map'){mode='game';show('bigmap',false);}
@@ -669,9 +670,16 @@ IB.MAIN=(function(){
       g.fillStyle='rgba(0,0,0,'+IB.clamp(fadeT/0.3,0,1)+')';g.fillRect(0,0,IB.CAMW,IB.CAMH);
       if(fadeCb&&fadeT<=0.15){const cb=fadeCb;fadeCb=null;cb();}
     }
-    /* dead screen */
+    /* dead screen — БАТЧ 22: фінальна статистика цього разу (час/зібрано/вбито) */
     if(IB.PL&&!IB.PL.alive&&mode==='game'){
       mode='dead';show('dead',true);
+      const G=IB.G,pt=G.playT||0,ph=Math.floor(pt/3600),pm=Math.floor(pt/60)%60;
+      const hh=Math.floor(G.t||0),mm2=Math.floor(((G.t||0)-hh)*60);
+      const p2=n=>String(n).padStart(2,'0');
+      $('dead-stats').innerHTML=
+        '<b>ЧАС У МІСТІ:</b> '+(ph>0?ph+' ГР '+pm+' ХВ':pm+' ХВ')+' • ДЕНЬ '+G.day+' • '+p2(hh)+':'+p2(mm2)+'<br>'+
+        '<b>ЗІБРАНО РЕЧЕЙ:</b> '+(G.loot||0)+'<br>'+
+        '<b>ЗАРАЖЕНИХ ЗНИЩЕНО:</b> '+(IB.PL.kills||0)+'<br>';
       $('dead-txt').textContent='Ти загинув на вулицях Києва. Але місто ще чекає. Схованка зберігає твої речі — повернись.';
       IB.AUDIO.sfx('zdie');
     }
