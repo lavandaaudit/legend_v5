@@ -101,6 +101,15 @@ IB.AUDIO = (function(){
     for(const n of musNodes){try{n.stop();}catch(e){}}
     musNodes=[];
   }
+  /* БАТЧ 24: м'який намір музики — НЕ створює AudioContext до першої жести
+     користувача (на частині машин/вебвʼю створення контексту при відкритті
+     сторінки давало підвис і попередження). wake (перший клік/клавша) →
+     init() → контекст створюється, і намір негайно починає грати. */
+  let musWanted=null;
+  function wantMusic(mode){
+    musWanted=mode;
+    if(ctx&&ctx.state==='running')musicStart(mode);
+  }
   function musicStart(mode){
     if(!ensure())return;
     if(musMode===mode)return;
@@ -145,10 +154,10 @@ IB.AUDIO = (function(){
     }
   }
   return {
-    init:ensure,
+    init:()=>{const ok=ensure();if(ok&&musWanted&&!musMode)musicStart(musWanted);return ok;},
     sfx:n=>{try{(S[n]||(()=>{}))();}catch(e){}},
     engineStart,engineSet,engineStop,jingle,
-    musicStart,musicStop,isMusic:()=>musMode,
+    musicStart,musicStop,wantMusic,isMusic:()=>musMode,
     setVol:v=>{vol=v;if(master)master.gain.value=muted?0:v;},
     toggleMute:()=>{muted=!muted;if(master)master.gain.value=muted?0:vol;return muted;},
   };

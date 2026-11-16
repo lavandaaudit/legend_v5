@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
 <div id="shell">
@@ -133,7 +133,9 @@
           <div id="loading" class="screen hidden">
             <div class="ld1">СЕКТОР</div>
             <div id="load-sector">—</div>
-            <div id="load-bar"><i></i></div>
+            <div id="load-head"><span id="load-word">ЗАВАНТАЖЕННЯ…</span><span id="load-pct">0%</span></div>
+            <div id="load-bar"><i><b></b></i></div>
+            <div id="load-list"></div>
             <div id="load-tip">—</div>
           </div>
 
@@ -238,7 +240,7 @@
     </div>
 
     <div id="console-bottom">
-      <div class="cb-note">CRT 480×336 • ГРАФІКА: ВЛАСНИЙ 16-BIT ПІКСЕЛЬ-АРТ • ІЗОМЕТРІЯ 2:1 • РЕЛІЗ v3.4 «МИТТЄВИЙ СТАРТ» — 16.11.2026</div>
+      <div class="cb-note">CRT 480×336 • ГРАФІКА: ВЛАСНИЙ 16-BIT ПІКСЕЛЬ-АРТ • ІЗОМЕТРІЯ 2:1 • РЕЛІЗ v3.8 «ПІДПИСАНА КАРТА» — 16.11.2026</div>
       <div class="cb-ctl">
         <label class="slider"><span>ГУЧНІСТЬ</span><input id="vol" type="range" min="0" max="100" value="55"></label>
         <button id="btn-scan" class="tbtn active">CRT</button>
@@ -258,14 +260,14 @@
       <div class="rel-poster"><img src="1.jpg" alt="Плакат KYIV — THE LAST SIGNAL"></div>
       <div class="rel-info">
         <div class="rel-name">KYIV — THE LAST SIGNAL</div>
-        <div class="rel-ver">РЕЛІЗ v3.4 «МИТТЄВИЙ СТАРТ» • 16 ЛИСТОПАДА 2026 • 1 PLAYER</div>
+        <div class="rel-ver">РЕЛІЗ v3.8 «ПІДПИСАНА КАРТА» • 16 ЛИСТОПАДА 2026 • 1 PLAYER</div>
         <p><b>Про гру.</b> Ізометричний 16-bit open world survival у покинутому Києві й Київській області (карта 560×660): 28 районів від Оболоні до Троєщини, Дніпро з мостами, метро, села, ліси, гори і Трипільська гора. Віктор Легенд Хоменко проти орд заражених, повітряних атак і голоду: меч і винтовка, зачистка будинків 2-4 поверхи, рятування вцілілих, база ВВ13 • КПІ, схема тунелів метро, авто, АЗС, погода і дні, що змінюються.</p>
         <p><b>Нове у релізі v3.1 — квест «НЕДОСТАВЛЕНІ»:</b> 26 листів, по одному в кожному районі. Кожен лист — голос того, хто вже не дозвонився; у кожному — схованка автора з лутом. Усі нитки ведуть до «Нічної Голосної» — радіо 103.1, що щовночі читає недоставлене. Збери всі листи і постав їх в ефір з бази ВВ13: нагорода — МЕЧ «ЛЕГЕНДА».</p>
         <div class="rel-credit">
           <span><b>ГРАФІКА:</b> власний 16-bit піксель-арт студії • ізометрія 2:1 • постапокаліптичний фільтр</span>
           <span><b>ГЕЙМПЛЕЙ, КОД, СВІТ ТА ЗВУК:</b> розроблено з нуля студією IBONARIUM GAMEWORKS</span>
           <span><b>АВТОР ГРИ:IBONARIUM GAMEWORKS</b></span>
-          <span><b>ДАТА РЕЛІЗУ:</b> 16.11.2026 • ВЕРСІЯ v3.4 • МОДЕРАЦІЯ: M — MATURE 17+</span>
+          <span><b>ДАТА РЕЛІЗУ:</b> 16.11.2026 • ВЕРСІЯ v3.8 • МОДЕРАЦІЯ: M — MATURE 17+</span>
         </div>
       </div>
     </div>
@@ -287,17 +289,17 @@
   </footer>
 </div>
 
-<script src="js/palette.js?v=16"></script>
-<script src="js/audio.js?v=16"></script>
-<script src="js/sprites.js?v=16"></script>
-<script src="js/assets.js?v=16"></script>
-<script src="js/kenney.js?v=16"></script>
-<script src="js/landmarks.js?v=16"></script>
-<script src="js/letters.js?v=16"></script>
-<script src="js/world.js?v=16"></script>
-<script src="js/ents.js?v=16"></script>
-<script src="js/sys.js?v=16"></script>
-<script src="js/gfx.js?v=16"></script>
-<script src="js/main.js?v=16"></script>
+<script src="js/palette.js?v=21"></script>
+<script src="js/audio.js?v=21"></script>
+<script src="js/sprites.js?v=21"></script>
+<script src="js/assets.js?v=21"></script>
+<script src="js/kenney.js?v=21"></script>
+<script src="js/landmarks.js?v=21"></script>
+<script src="js/letters.js?v=21"></script>
+<script src="js/world.js?v=21"></script>
+<script src="js/ents.js?v=21"></script>
+<script src="js/sys.js?v=21"></script>
+<script src="js/gfx.js?v=21"></script>
+<script src="js/main.js?v=21"></script>
 </body>
 </html>

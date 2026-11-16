@@ -183,8 +183,26 @@ body{
 #loading{background:#050609}
 .ld1{font-size:8px;color:#5a6175;letter-spacing:3px}
 #load-sector{font-size:14px;color:var(--gold)}
-#load-bar{width:220px;height:10px;border:2px solid var(--line);background:#0b0d14;margin-top:4px}
-#load-bar i{display:block;height:100%;background:var(--gold);width:0%}
+/* БАТЧ 26: ЖИВИЙ ПОВЗУНОК. Заповнення рухається через transform:scaleX —
+   компоситор браузера анімує його ОКРЕМО від головного потоку, тому ковзання
+   і блиск видно навіть тоді, коли JS блокує потік важкою генерацією
+   (користувач завжди бачить, що процес іде). Відсотки й пульс — теж
+   компоситорні (opacity), жодної роботи на main thread. */
+#load-head{display:flex;gap:10px;align-items:baseline;margin-top:4px;font-size:8px;letter-spacing:2px}
+#load-word{color:#c8d0e0;animation:ldpulse 1.1s ease-in-out infinite}
+#load-pct{color:var(--gold);min-width:34px;text-align:right}
+@keyframes ldpulse{0%,100%{opacity:1}50%{opacity:.35}}
+#load-bar{width:220px;height:10px;border:2px solid var(--line);background:#0b0d14;margin-top:4px;overflow:hidden;position:relative}
+#load-bar i{display:block;height:100%;width:100%;background:var(--gold);transform:scaleX(0);transform-origin:left center;transition:transform .45s cubic-bezier(.3,.6,.3,1)}
+#load-bar i b{display:block;height:100%;width:36px;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.55),rgba(255,255,255,0));animation:ldshine 1.4s linear infinite}
+@keyframes ldshine{0%{transform:translateX(-40px)}100%{transform:translateX(224px)}}
+/* БАТЧ 25: список етапів завантаження локацій — можна читати, поки місто будується */
+#load-list{margin-top:14px;text-align:left;font-size:8px;line-height:2.1;color:#5a6175;letter-spacing:1px;min-height:130px}
+#load-list .ok{color:var(--gold)}
+#load-list .on{color:#c8d0e0}
+#load-list .ok::before{content:'●  ';color:#3fbf5a}
+#load-list .on::before{content:'●  ';color:#e0b64a}
+#load-list .wait::before{content:'●  ';color:#333a4c}
 #load-tip{font-size:7px;color:#8a92a8;max-width:80%;line-height:2}
 
 #inv-list,#craft-list{display:flex;flex-direction:column;gap:4px}

@@ -380,34 +380,142 @@ IB.MAIN=(function(){
     mode='title';
     show('boot',false);show('title',true);show('loading',false);show('hud',false);show('pause',false);show('dead',false);show('end',false);show('bigmap',false);show('inv',false);show('controls',false);show('about',false);
     try{IB.GFX.drawLogo($('logo').getContext('2d'));}catch(e){}
+    let hasSave=false;
+    try{hasSave=IB.SYS.hasSave();}catch(e){}   /* БАТЧ 24: localStorage може кидати у приватному режимі */
     const items=[{t:'НОВА ГРА',f:()=>startNewGame()}];
-    if(IB.SYS.hasSave())items.push({t:'ПРОДОВЖИТИ',f:()=>loadGame()});
+    if(hasSave)items.push({t:'ПРОДОВЖИТИ',f:()=>loadGame()});
     items.push({t:'КЕРУВАННЯ',f:()=>{mode='controls';show('title',false);show('controls',true);}});
     items.push({t:'ПРО ГРУ ТА АСЕТИ',f:()=>{mode='about';show('title',false);show('about',true);}});
     setMenu(items,'title');
-    IB.AUDIO.musicStart('title');
+    try{IB.AUDIO.wantMusic('title');}catch(e){}   /* БАТЧ 24: без створення AudioContext до жести */
   }
-  /* БАТЧ 23: жодних окремих екранів «boot» і «loading». Тайтл відкривається
-     одразу після відкриття сторінки, музика починається з першою взаємодією,
-     а «загрузка» перенесена ВСЕРЕДИНУ гри: якщо передгенерація (батч 20,
-     setTimeout 350мс після ініта) ще не встигла — світ будується тут, ~135мс,
-     гравець цього не помічає; далі одразу HUD і банер сектора в грі. */
+  /* БАТЧ 25: Kenney-ассети — застосовуються ТІЛЬКИ на екрані завантаження
+     (поза тайтлом і поза грою): ні фріза при відкритті, ні фріза посеред бою */
+  let kenneyDone=false;
+  function applyKenney(){
+    if(kenneyDone)return;kenneyDone=true;
+    try{
+      const r=IB.KENNEY.apply();
+      if(r&&r.bldOk>0)IB.toast('МІСЬКІ АССЕТИ ПІДКЛЮЧЕНО','gold');
+    }catch(e){/* процедурний стиль лишається */}
+  }
+  /* БАТЧ 25: ЧЕСНИЙ ЕКРАН ЗАВАНТАЖЕННЯ ЗІ СПИСКОМ ЛОКАЦІЙ (як просили —
+     «краще там чекати і читати»). Світ НЕ генерується при відкритті сторінки
+     взагалі; весь конструктор міста живе тут. Кожен важкий блок відпрацьовує
+     МІЖ оновленнями списку: пауза 140мс лише на відмалювання галочки — тому
+     прогрес видно навіть коли блок морозить потік на слабкій машині. */
+  const LOAD_TIPS=[
+    'СХОВАНКА ЗБЕРІГАЄ РЕЧІ МІЖ СМЕРТЯМИ — ПОВЕРНИСЯ ПО НИХ.',
+    'ВЕЖІ ВІДКРИВАЮТЬ СЕКТОРИ МІСТА — СЛІДКУЙ ЗА МАРКЕРАМИ НА МІНІКАРТІ.',
+    'МЕТРО ЗʼЄДНУЄ РАЙОНИ, ЯКЩО ПЕРЕХІД ВЦІЛІВ. ТАМ ТЕМНО.',
+    'АЗС І АВТО ВИБУХАЮТЬ — ВИКОРИСТОВУЙ ЦЕ У БОЮ.',
+    'РАДІО 103.1 ПЕРЕДАЄ СИГНАЛИ ВЦІЛІЛИХ. ЛИСТИ ЧЕКАЮТЬ ДОСТАВКИ.',
+    'ВЕЛИКА КАРТА (TAB) ПОКАЗУЄ, ЩО ДОСЛІДЖЕНО, А ЩО НІ.',
+    'ВОДА І КОНСЕРВИ — ГОЛОВНЕ. БУДЬ ЯКІ, ЩО ЗНАЙДЕШ.',
+    'ВЕЧІРНІ ХВИЛІ СИЛЬНІШІ. ВНОЧІ КРАЩЕ СИДИТИ У СХОВАНЦІ.',
+  ];
+  const STAGE_MS=140;
+  /* БАТЧ 26: повзунок керується через transform:scaleX (компоситор) —
+     ковзання і блиск анімуються браузером окремо від JS, тож рух видно
+     навіть під час важкого блоку генерації */
+  function showLoading(txt,items){
+    try{
+      $('load-sector').textContent=txt;
+      $('load-tip').textContent='ПОРАДА: '+LOAD_TIPS[(Math.random()*LOAD_TIPS.length)|0];
+      const box=$('load-list');
+      box.innerHTML='';
+      (items||[]).forEach(t=>{
+        const d=document.createElement('div');
+        d.className='wait';d.textContent=t;
+        box.appendChild(d);
+      });
+      $('load-bar').firstElementChild.style.transform='scaleX(0)';
+      $('load-pct').textContent='0%';
+      show('loading',true);show('title',false);show('boot',false);
+    }catch(e){}
+    mode='loading';
+  }
+  function loadMark(i,pct){
+    try{
+      const box=$('load-list');
+      if(box.children[i])box.children[i].className='ok';
+      if(box.children[i+1])box.children[i+1].className='on';
+      if(pct!=null){
+        $('load-bar').firstElementChild.style.transform='scaleX('+(pct/100)+')';
+        $('load-pct').textContent=pct+'%';
+      }
+    }catch(e){}
+  }
+  /* виконавець стадій: sync-стадії по черзі з відмалюванням між ними,
+     async-стадії (ассети) — через Promise; збій стадії → назад у меню */
+  function runStages(steps){
+    let i=0;
+    const next=()=>{
+      if(i>=steps.length){beginPlay();return;}
+      const st=steps[i++];
+      let fail=null,async=false;
+      try{
+        const r=st.f&&st.f();
+        if(r&&r.then){async=true;
+          r.then(()=>{if(st.mark!=null)loadMark(st.mark,st.pct);setTimeout(next,STAGE_MS);})
+           .catch(()=>{if(st.mark!=null)loadMark(st.mark,st.pct);setTimeout(next,STAGE_MS);});
+        }
+      }catch(e){fail=e;console.error(e);}
+      if(!async){
+        if(st.mark!=null)loadMark(st.mark,st.pct);
+        if(fail){IB.toast('ПОМИЛКА СТАРТУ — СПРОБУЙ ЩЕ РАЗ','red');titleMenu();return;}
+        setTimeout(next,STAGE_MS);
+      }
+    };
+    requestAnimationFrame(()=>requestAnimationFrame(next));
+  }
+  function assetsStage(){   /* чекаємо PNG (макс 1.8с), потім Kenney-косметика */
+    const cap=new Promise(r=>setTimeout(r,1800));
+    return Promise.race([IB._assetsP||Promise.resolve(),cap]).then(()=>{applyKenney();});
+  }
   function startNewGame(){
-    if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}
-    IB._loadPending=false;
-    IB.SYS.newGame();
-    beginPlay();
+    showLoading('ГЕНЕРАЦІЯ СВІТУ • СЕКТОР КИЇВ',[
+      'МІСТО — 37 РАЙОНІВ КИЄВА',
+      'МЕТРО — ЛІНІЇ, СТАНЦІЇ, ТОНЕЛІ',
+      'ВЦІЛІЛІ, СХОВАНКИ, ПОШТА',
+      'ЗАРАЖЕНІ І ХВИЛІ',
+      'АССЕТИ МІСТА (KENNEY CITY)',
+      'ФІНАЛЬНА ПЕРЕВІРКА СЕКТОРА',
+    ]);
+    runStages([
+      {f:()=>IB.buildWorld(),mark:0,pct:17},
+      {f:()=>{IB.buildMetro();IB.CWORLD=IB.WORLD;},mark:1,pct:34},
+      {f:()=>IB.SYS.newGame(),mark:2,pct:50},
+      {f:null,mark:3,pct:66},   /* зомбі й хвилі розселені у SYS.newGame */
+      {f:()=>assetsStage(),mark:4,pct:84},
+      {f:()=>{},mark:5,pct:100},
+    ]);
   }
   function loadGame(){
-    if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}
-    beginPlay();
-    if(!IB.SYS.load())IB.SYS.newGame();
+    showLoading('ВІДНОВЛЕННЯ З СХОВАНКИ • СЕКТОР КИЇВ',[
+      'МІСТО — 37 РАЙОНІВ КИЄВА',
+      'МЕТРО — ЛІНІЇ, СТАНЦІЇ, ТОНЕЛІ',
+      'РЯТІВНИЙ ЩОДЕННИК (СЕЙВ)',
+      'АССЕТИ МІСТА (KENNEY CITY)',
+      'ФІНАЛЬНА ПЕРЕВІРКА СЕКТОРА',
+    ]);
+    runStages([
+      {f:()=>IB.buildWorld(),mark:0,pct:20},
+      {f:()=>{IB.buildMetro();IB.CWORLD=IB.WORLD;},mark:1,pct:40},
+      {f:()=>{if(!IB.SYS.load())IB.SYS.newGame();},mark:2,pct:60},
+      {f:()=>assetsStage(),mark:3,pct:80},
+      {f:()=>{},mark:4,pct:100},
+    ]);
   }
   function beginPlay(){
     show('loading',false);show('hud',true);show('title',false);show('boot',false);
     mode='game';
     IB.Input.clear();
-    IB.AUDIO.musicStart('game');   /* БАТЧ 23: у грі — тихий фоновий дрон замість тайтл-теми */
+    /* БАТЧ 27: мінімапа за замовчуванням — ПЛАН МІСТА з підписаними районами,
+       позначками і GPS (P перемикає на локальну зону). */
+    if(IB.G.mmMode===undefined)IB.G.mmMode='plan';
+    if(IB.PL){IB.cam.x=IB.PL.car?IB.PL.car.x:IB.PL.x;IB.cam.y=IB.PL.car?IB.PL.car.y:IB.PL.y;}   /* БАТЧ 24: камера одразу на гравця */
+    try{IB.AUDIO.musicStart('game');}catch(e){}
   }
   MAIN.showEnd=function(){
     mode='end';
@@ -593,6 +701,9 @@ IB.MAIN=(function(){
 
   function frame(ts){
     requestAnimationFrame(frame);
+    /* БАТЧ 24: один виняток у кадрі більше не може залишити «застиглий»
+       екран — тіло кадру захищено, наступний кадр гарантовано відбудеться */
+    try{
     document.body.classList.toggle('playing', mode==='game'||mode==='map'||mode==='dialog'||mode==='inv'||mode==='dead'||mode==='end');
     const dt=Math.min(0.05,(ts-last)/1000||0.016);last=ts;
     uiTick++;
@@ -666,6 +777,7 @@ IB.MAIN=(function(){
       IB.AUDIO.musicStop();
       IB.AUDIO.sfx('zdie');
     }
+    }catch(e){if(!window.__frameErr){window.__frameErr=e;console.error('frame:',e);}}
   }
   MAIN.fadeTo=function(cb){fadeT=0.6;fadeCb=cb;};
   MAIN.backToTitle=function(){show('controls',false);show('about',false);titleMenu();};
@@ -680,12 +792,19 @@ IB.MAIN=(function(){
     if(fsBtn)fsBtn.onclick=()=>toggleFullscreen();
     if($('crt')){$('crt').addEventListener('dblclick',()=>toggleFullscreen());}
     $('vol').oninput=e=>IB.AUDIO.setVol(e.target.value/100);
-    /* БАТЧ 23: музика одразу. Браузери дозволяють звук лише після жести
-       користувача, тому перший клік/клавша вмикає аудіо і тайтл-тему циклом.
-       Далі керує musicStart/musicStop (гра/смерть/смерт-екран). */
+    /* БАТЧ 23/24: музика одразу. Браузери дозволяють звук лише після жести
+       користувача, тому перший клік/клавша створює аудіоконтекст і вмикає
+       намір музики (wantMusic). Слухачі знімаються після спрацювання —
+       жодних зайвих викликів init() на кожну клавшу гри. */
+    let woke=false;
     const wake=()=>{
-      IB.AUDIO.init();
-      if(IB.AUDIO.isMusic()===null&&(mode==='title'||mode==='controls'||mode==='about'))IB.AUDIO.musicStart('title');
+      if(woke)return;woke=true;
+      window.removeEventListener('pointerdown',wake);
+      window.removeEventListener('keydown',wake);
+      try{IB.AUDIO.init();}catch(e){}
+      if(IB.AUDIO.isMusic()===null&&(mode==='title'||mode==='controls'||mode==='about')){
+        try{IB.AUDIO.musicStart('title');}catch(e){}
+      }
     };
     window.addEventListener('pointerdown',wake);
     window.addEventListener('keydown',wake);
@@ -776,22 +895,14 @@ IB.MAIN=(function(){
     fit();
     last=performance.now();
     requestAnimationFrame(frame);
-    /* Kenney City Kit assets (CC0) — м’який фолбек на процедурні спрайти */
+    /* БАТЧ 25: НУЛЬОВА ВАЖКА РОБОТА ПРИ ВІДКРИТТІ СТОРІНКИ. Світ і метро
+       більше НЕ генеруються у фоні тайтла — на слабких машинах це давало
+       2-3с підмерзання відкритої сторінки, яке виглядало як «все висить».
+       Світ будується ЛИШЕ при старті нової гри / продовженні — під екраном
+       завантаження зі списком локацій (БАТЧ 25), який можна читати. */
     if(IB.ASSETS&&IB.ASSETS.load){
-      IB.ASSETS.load().then(()=>{
-        try{
-          const r=IB.KENNEY.apply();
-          if(r.bldOk>0)IB.toast('МІСЬКІ АССЕТИ ПІДКЛЮЧЕНО','gold');
-        }catch(e){/* процедурний стиль лишається */}
-      }).catch(()=>{});
+      IB._assetsP=IB.ASSETS.load().catch(()=>{});   /* PNG декодуються у фоні браузера */
     }
-    /* БАТЧ 20: передгенерація світу у фоні — місто (135мс) і метро (35мс)
-       будуються ще під час boot-інтро, тому «НОВА ГРА» стартує миттєво
-       і сторінка не заморожується. Спроба в try/catch: якщо щось пішло
-       не так — завантаження згенерує світ синхронно, як раніше. */
-    setTimeout(function(){try{
-      if(!IB.WORLD){IB.buildWorld();IB.buildMetro();IB.CWORLD=IB.WORLD;}
-    }catch(e){}},350);
   };
   return MAIN;
 })();

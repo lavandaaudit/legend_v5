@@ -716,6 +716,23 @@ IB.GFX=(function(){
     g.lineTo(lx,ly);g.stroke();g.lineWidth=1;
     return true;
   }
+  /* БАТЧ 27: центри районів з бітової карти зон — кеш на світі. Дає точні
+     якорі для підписів УСІХ районів на мінімапі-плані (ANCH на великій карті
+     кураторський, тут надійніше рахувати з даних). */
+  function zoneCenters(){
+    const W=IB.WORLD;if(!W||!W.zone)return null;
+    if(W._zc)return W._zc;
+    const NZ=IB.ZONES.length;
+    const sx=new Float64Array(NZ),sy=new Float64Array(NZ),n=new Float64Array(NZ);
+    for(let y=0;y<W.H;y+=2)for(let x=0;x<W.W;x+=2){
+      const z=W.zone[W.ridx(x,y)];
+      if(z>0&&z<NZ){sx[z]+=x;sy[z]+=y;n[z]++;}
+    }
+    const out=[];
+    for(let z=0;z<NZ;z++)out.push(n[z]?[sx[z]/n[z],sy[z]/n[z],n[z]]:(ANCH[z]||null));
+    W._zc=out;
+    return out;
+  }
   function drawMinimapHUD(g){
     const W=IB.WORLD,PL=IB.PL,G=IB.G;
     if(!W||!PL)return;
@@ -748,6 +765,37 @@ IB.GFX=(function(){
       if(G.flags.drop){const[a,b]=P(G.flags.drop.x,G.flags.drop.y);dot(a,b,'#e04a3a',2);}
       const SH=IB.G.shah;
       if(SH&&SH.phase&&IB.layer!=='metro')for(const tg of SH.targets){const[a,b]=P(tg.x,tg.y);tri(a,b,NOW%260<130?'#e04a3a':'#8a2a20');}
+      /* БАТЧ 27: ПІДПИСАНІ РАЙОНИ на плані міста — назва кожного району
+         (скорочення з DSC) у центрі його зони; відвідані — золоті. У метро
+         зон немає, там план без підписів районів. */
+      if(IB.layer!=='metro'){
+        const ZC=zoneCenters();
+        if(ZC){
+          /* великі райони підписуємо першими, дрібні пропускаємо при
+             перекритті — план читабельний, без купи назв один на одному */
+          const order=[];
+          for(let zi=0;zi<IB.ZONES.length;zi++)if(ZC[zi])order.push(zi);
+          order.sort((p,q)=>(ZC[q][2]||0)-(ZC[p][2]||0));
+          const used=[];
+          g.font='6px monospace';g.textAlign='center';
+          for(const zi of order){
+            const c=ZC[zi];
+            const[a,b]=P(c[0],c[1]);
+            if(a<16||a>SZ-16||b<9||b>SZ-9)continue;
+            const nm=DSC[zi]||IB.ZONES[zi].n;
+            const tw=g.measureText(nm).width;
+            const r=[a-tw/2-1,b-4.5,a+tw/2+1,b+2.5];
+            let hit=false;
+            for(const u of used)if(r[0]<u[2]&&r[2]>u[0]&&r[1]<u[3]&&r[3]>u[1]){hit=true;break;}
+            if(hit)continue;
+            used.push(r);
+            g.fillStyle='rgba(8,10,16,0.58)';g.fillRect(r[0],r[1],r[2]-r[0],r[3]-r[1]);
+            g.fillStyle=G.visited[zi]?'#e8c860':'#9aa0ae';
+            g.fillText(nm,a,b+2);
+          }
+          g.textAlign='left';
+        }
+      }
       const[px2,py2]=P(PL.x,PL.y);
       dot(px2,py2,NOW%300<150?'#ffffff':'#d6dae6',2);
       /* рамка поточного локального виду */
@@ -834,7 +882,10 @@ IB.GFX=(function(){
       g.strokeStyle='#ffffff';g.beginPath();g.moveTo(pxx,pyy);g.lineTo(pxx+PL.fx*7,pyy+PL.fy*7);g.stroke();
       g.font='6px monospace';g.textAlign='left';
       g.fillStyle='#f0d050';g.fillText('ЛОКАЛЬНО',3,8);
-      g.fillStyle='#8a92a8';g.textAlign='right';g.fillText('P — ПЛАН',SZ-3,8);
+      /* БАТЧ 27: назва поточного району прямо на локальній мінімапі */
+      const zNow=W.zone[W.ridx(PL.x|0,PL.y|0)];
+      g.fillStyle='#8a92a8';g.textAlign='right';
+      g.fillText(((DSC[zNow]||W.zoneName(zNow))+' • P — ПЛАН'),SZ-3,8);
     }
     g.strokeStyle='#3c4356';g.strokeRect(0.5,0.5,SZ-1,SZ-1);
   }
